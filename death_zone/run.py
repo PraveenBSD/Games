@@ -249,6 +249,7 @@ def runme():
             yprev = y
             userDetails['myPosition'] = (x, y)
         else:
+            attackMe(myPosition = (-30, -30))
             t13 = threading.Thread(target = sendMyPosition, args = (-30, -30))
             t13.daemon = True
             t13.start()
