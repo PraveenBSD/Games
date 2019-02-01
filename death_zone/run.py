@@ -3,6 +3,7 @@ import random
 import json
 import threading
 import socket
+import time
 
 # ---------- COLORS------------- #
 violet = (42, 36, 60)
@@ -19,20 +20,21 @@ bgColor = violet
 teamColor ={'a': red, 'b': blue, }
 address = "192.168.0.101"
 port = 8500
-userDetails ={
+userDetails = {
     'name': None,
     'health': 100,
-    'flags': {'fire': False, 'fired': False, 'dead': False},
+    'flags': {'fire': False, 'fired': False, 'dead': False, 'startGame': False},
     'attackPosition': (-1, -1),
     'points': 0,
     'color': None,
     'attacksReceived': {},
     'teamName': None,
     'teamPlayerPositions': [],
-    'myPosition': ()
+    'myPosition': (),
+    'gameMode': 1,
+    'time': time.time()
 }
 otherPlayers = dict()
-
 
 def setup():
     userDetails['name'] = input("enter your name ")
@@ -91,6 +93,20 @@ def deadMessage():
     gameDisplay.blit(text, ((display_width/2.5) - 20, display_height/2))
 
 
+def waitForPlayers():
+
+    if time.time() - userDetails['time'] > 2:
+        info = ''
+        userDetails['time'] = time.time()
+    else:
+        info = 'WAITING FOR PLAYERS TO JOIN ...'
+    font = pygame.font.Font("/Users/praveen/Documents/PET/Games/FightMe/Fonts/CourierPrime.ttf", 18)
+    text = font.render(info, True, white)
+    gameDisplay.blit(text, ((display_width/3.5) - 20, display_height/2))
+    if len(otherPlayers) == userDetails['gameMode'] * 2:
+        userDetails['flags']['startGame'] = True
+
+
 def shoot(x, y):
     x += 5
     pygame.draw.circle(gameDisplay, yellow, (int(x), int(y)), 5)
@@ -119,8 +135,8 @@ def setPlayers(players, attackPosition):
             playerY = int(display_height - val[1] - 30)
 
         if key != userDetails['name']:
-            if (attackPosition[0] >= playerX) and (attackPosition[0] <= playerX + 20) and \
-                    (attackPosition[1] >= playerY) and (attackPosition[1] <= playerY + 30):
+            if (attackPosition[0] + 10 >= playerX) and (attackPosition[0] <= playerX + 20) and \
+                    (attackPosition[1] + 5 >= playerY) and (attackPosition[1] - 5 <= playerY + 30):
                 userDetails['points'] += 5
                 userDetails['flags']['fired'] = False
                 userDetails['attackPosition'] = (-1, -1)
@@ -137,10 +153,11 @@ def attackMe(myPosition):
             y = val[1]
         else:
             x = display_width - val[0] - 10
-            y = display_height - val[1] + 10
+            y = display_height - val[1]
         if key != userDetails['name']:
             shoot(x, y)
-            if (x >= myPosition[0]) and (x <= myPosition[0] + 20) and (y >= myPosition[1]) and (y <= myPosition[1]+30):
+            if (x + 10 >= myPosition[0]) and (x <= myPosition[0] + 20) and (y + 5 >= myPosition[1])\
+                    and (y - 5 <= myPosition[1] + 30):
                 userDetails['health'] -= 5
                 userDetails['color'] = white
                 print(userDetails)
@@ -200,7 +217,8 @@ def runme():
                     yChng = 5
                 if event.key == pygame.K_UP:
                     yChng = -5
-                if event.key == pygame.K_SPACE and not userDetails['flags']['fired']:
+                if event.key == pygame.K_SPACE and not userDetails['flags']['fired'] \
+                        and userDetails['flags']['startGame']:
                     userDetails['flags']['fire'] = True
 
             if event.type == pygame.KEYUP and not userDetails['flags']['dead']:
@@ -222,6 +240,9 @@ def runme():
             t11 = threading.Thread(target = sendAttackPosition, args = (fx, fy))
             t11.daemon = True
             t11.start()
+
+        if not userDetails['flags']['startGame']:
+            waitForPlayers()
 
         if userDetails['flags']['fire']:
             userDetails['flags']['fire'] = False
