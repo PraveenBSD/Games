@@ -1,5 +1,4 @@
 import pygame
-import time
 import random
 import json
 import threading
@@ -55,11 +54,6 @@ def setup():
         raise Exception("unable to connect to address {address}:{port}".format(address = address, port = port))
 
 
-
-
-
-
-
 def myPlayer(x, y, color):
 
     if x <= 0:
@@ -82,12 +76,19 @@ def myPlayer(x, y, color):
 
 def showDetails():
 
-    myfont = pygame.font.Font(None, 15)
+    font = pygame.font.Font("/Users/praveen/Documents/PET/Games/FightMe/Fonts/CourierPrime.ttf", 15)
+    info = 'POINTS: {points}      HEALTH: {health}'.\
+        format(points = userDetails['points'], health = userDetails['health'])
+    text = font.render(info, True, white)
+    gameDisplay.blit(text, (5, (display_height + 20)))
 
-    textsurface = myfont.render('Points: {points}        Health: {health}'.
-                                format(points = userDetails['points'], health = userDetails['health']),
-                                1, (255, 255, 255))
-    gameDisplay.blit(textsurface, (display_height + 20, 5))
+
+def deadMessage():
+
+    font = pygame.font.Font("/Users/praveen/Documents/PET/Games/FightMe/Fonts/CourierPrime.ttf", 30)
+    info = 'YOU DIED !'
+    text = font.render(info, True, yellow)
+    gameDisplay.blit(text, ((display_width/2.5) - 20, display_height/2))
 
 
 def shoot(x, y):
@@ -146,8 +147,6 @@ def attackMe(myPosition):
                 print('health = ', userDetails['health'])
                 if userDetails['health'] == 0:
                     userDetails['flags']['dead'] = True
-                    pygame.quit()
-                    exit()
     userDetails['attacksReceived'] = {}
 
 
@@ -192,7 +191,7 @@ def runme():
                 pygame.quit()
                 exit()
 
-            if event.type == pygame.KEYDOWN:
+            if event.type == pygame.KEYDOWN and not userDetails['flags']['dead']:
                 if event.key == pygame.K_LEFT:
                     xChng = -5
                 if event.key == pygame.K_RIGHT:
@@ -204,7 +203,7 @@ def runme():
                 if event.key == pygame.K_SPACE and not userDetails['flags']['fired']:
                     userDetails['flags']['fire'] = True
 
-            if event.type == pygame.KEYUP:
+            if event.type == pygame.KEYUP and not userDetails['flags']['dead']:
                 if event.key == pygame.K_LEFT or event.key == pygame.K_RIGHT:
                     xChng = 0
                 if event.key == pygame.K_UP or event.key == pygame.K_DOWN:
@@ -238,22 +237,25 @@ def runme():
         x += xChng
         y += yChng
 
-        attackMe(myPosition =  (x, y))
 
-        if x != xprev or y != yprev:
-            t13 = threading.Thread(target = sendMyPosition, args = (x, y))
+        if not userDetails['flags']['dead']:
+            attackMe(myPosition = (x, y))
+            if x != xprev or y != yprev:
+                t13 = threading.Thread(target = sendMyPosition, args = (x, y))
+                t13.daemon = True
+                t13.start()
+            x, y = myPlayer(x = x, y = y, color = userDetails['color'])
+            xprev = x
+            yprev = y
+            userDetails['myPosition'] = (x, y)
+        else:
+            t13 = threading.Thread(target = sendMyPosition, args = (-30, -30))
             t13.daemon = True
             t13.start()
-
-        x, y = myPlayer(x = x, y = y, color = userDetails['color'])
-
-        xprev = x
-        yprev = y
-        userDetails['myPosition'] = (x, y)
+            deadMessage()
 
         pygame.display.update()
         clock.tick(60)
-
 
 
 if __name__ == "__main__":
