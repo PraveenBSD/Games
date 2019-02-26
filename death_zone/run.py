@@ -18,12 +18,12 @@ yellow = (242, 177, 64)
 # --------- GLOBALS ------------ #
 bgColor = violet
 teamColor ={'a': red, 'b': blue, }
-address = "192.168.0.101"
+address = "192.168.112.135"
 port = 8500
 userDetails = {
     'name': None,
     'health': 100,
-    'flags': {'fire': False, 'fired': False, 'dead': False, 'startGame': False},
+    'flags': {'fire': False, 'fired': False, 'dead': False, 'startGame': False, 'gameOver': False},
     'attackPosition': (-1, -1),
     'points': 0,
     'color': None,
@@ -32,11 +32,19 @@ userDetails = {
     'teamPlayerPositions': [],
     'myPosition': (),
     'gameMode': 1,
-    'time': time.time()
+    'time': time.time(),
+    'otherPlayers': {},
+    'fanOf': None
 }
-otherPlayers = dict()
+
+
+enemySound = '/Users/praveen/Documents/PET/Games/Games/death_zone/Sounds/enemy_sound.mp3'
+teamSound = '/Users/praveen/Documents/PET/Games/Games/death_zone/Sounds/team_sound.mp3'
+winnerSound = '/Users/praveen/Documents/PET/Games/Games/death_zone/Sounds/winner.mp3'
+introSound = '/Users/praveen/Documents/PET/Games/Games/death_zone/Sounds/intro.mp3'
 
 def setup():
+    #global address
     userDetails['name'] = input("enter your name ")
     while True:
         team = input("Select your team (Either A/B) ").lower()
@@ -93,7 +101,7 @@ def deadMessage():
     gameDisplay.blit(text, ((display_width/2.5) - 20, display_height/2))
 
 
-def waitForPlayers():
+def waitForPlayers(musicController):
 
     if time.time() - userDetails['time'] > 2:
         info = ''
@@ -103,14 +111,39 @@ def waitForPlayers():
     font = pygame.font.Font("/Users/praveen/Documents/PET/Games/FightMe/Fonts/CourierPrime.ttf", 18)
     text = font.render(info, True, white)
     gameDisplay.blit(text, ((display_width/3.5) - 20, display_height/2))
-    if len(otherPlayers) == userDetails['gameMode'] * 2:
+    if len(userDetails['otherPlayers']) == userDetails['gameMode'] * 2:
+        musicController.stop()
         userDetails['flags']['startGame'] = True
+
+
+def gameOver():
+    font = pygame.font.Font("/Users/praveen/Documents/PET/Games/FightMe/Fonts/CourierPrime.ttf", 30)
+
+    c = playSound(filePath = winnerSound)
+    time.sleep(20)
+    x = 0
+    while x < 20:
+        info = ''
+        if x % 2 == 0:
+            info = 'MALA DA! ANNAMALA !'
+        text = font.render(info, True, orange)
+        gameDisplay.blit(text, ((display_width / 2.5) - 20, display_height / 2))
+        pygame.display.update()
+        time.sleep(1)
+    c.stop()
+
 
 
 def shoot(x, y):
     x += 5
     pygame.draw.circle(gameDisplay, yellow, (int(x), int(y)), 5)
 
+
+def playSound(filePath):
+    pygame.mixer.init()
+    pygame.mixer.music.load(filePath)
+    pygame.mixer.music.play(0)
+    return pygame.mixer.music
 
 def sendMyPosition(x, y):
     sock.send(str.encode(str({userDetails['name']: [x, y, userDetails['teamName']]})))
@@ -120,19 +153,24 @@ def sendAttackPosition(x, y):
     sock.send(str.encode(str({userDetails['name']: [x, y, 'launch', userDetails['teamName']]})))
 
 
-def setPlayers(players, attackPosition):
+def setPlayers(attackPosition):
     userDetails['teamPosition'] = []
-    for key, val in players.items():
+    if userDetails['flags']['startGame']:
+        userDetails['flags']['gameOver'] = True
+    for key, val in userDetails['otherPlayers'].items():
         #int(display_height - v[1] + 10)
         if val[2] == userDetails['teamName'] and key != userDetails['name']:
             playerX = int(val[0])
             playerY = int(val[1])
             userDetails['teamPosition'].append([playerX, playerY])
             playerColor = userDetails['color']
-        else:
+        elif key != userDetails['name']:
             playerColor = [v for k,v in teamColor.items() if k != userDetails['teamName']][0]
             playerX = int(display_width - val[0] - 20)
             playerY = int(display_height - val[1] - 30)
+            if not ((playerX < -100 or playerX > display_width + 100) and
+                    (playerY < - 100 or playerY > display_height + 100)):
+                userDetails['flags']['gameOver'] = False
 
         if key != userDetails['name']:
             if (attackPosition[0] + 10 >= playerX) and (attackPosition[0] <= playerX + 20) and \
@@ -141,6 +179,7 @@ def setPlayers(players, attackPosition):
                 userDetails['flags']['fired'] = False
                 userDetails['attackPosition'] = (-1, -1)
                 pygame.draw.rect(gameDisplay, white, (playerX, playerY, 20, 30), 0)
+                print (userDetails)
             else:
                 pygame.draw.rect(gameDisplay, playerColor, (playerX, playerY, 20, 30), 0)
 
@@ -158,12 +197,11 @@ def attackMe(myPosition):
             shoot(x, y)
             if (x + 10 >= myPosition[0]) and (x <= myPosition[0] + 20) and (y + 5 >= myPosition[1])\
                     and (y - 5 <= myPosition[1] + 30):
-                userDetails['health'] -= 5
+                userDetails['health'] -= 20
                 userDetails['color'] = white
-                print(userDetails)
-                print('health = ', userDetails['health'])
                 if userDetails['health'] == 0:
                     userDetails['flags']['dead'] = True
+
     userDetails['attacksReceived'] = {}
 
 
@@ -185,7 +223,7 @@ def listenToServer():
                 if len(val) > 2 and val[2] == 'launch':
                     userDetails['attacksReceived'][key] = val
                 else:
-                    otherPlayers[key] = val
+                    userDetails['otherPlayers'][key] = val
 
 
 def runme():
@@ -198,6 +236,7 @@ def runme():
     yprev = 0
     fx = 0
     fy = 0
+    introSoundController = playSound(filePath = introSound)
 
     while True:
 
@@ -206,6 +245,7 @@ def runme():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
+                sock.close()
                 exit()
 
             if event.type == pygame.KEYDOWN and not userDetails['flags']['dead']:
@@ -227,7 +267,7 @@ def runme():
                 if event.key == pygame.K_UP or event.key == pygame.K_DOWN:
                     yChng = 0
 
-        setPlayers(players = otherPlayers, attackPosition = userDetails['attackPosition'])
+        setPlayers(attackPosition = userDetails['attackPosition'])
         showDetails()
 
         if userDetails['flags']['fired']:
@@ -242,7 +282,7 @@ def runme():
             t11.start()
 
         if not userDetails['flags']['startGame']:
-            waitForPlayers()
+            waitForPlayers(musicController = introSoundController)
 
         if userDetails['flags']['fire']:
             userDetails['flags']['fire'] = False
@@ -269,13 +309,20 @@ def runme():
             xprev = x
             yprev = y
             userDetails['myPosition'] = (x, y)
+
         else:
             attackMe(myPosition = (-30, -30))
-            t13 = threading.Thread(target = sendMyPosition, args = (-30, -30))
+            t13 = threading.Thread(target = sendMyPosition, args = (-1000, -1000))
             t13.daemon = True
             t13.start()
             deadMessage()
 
+        if userDetails['flags']['gameOver']:
+            print ('over')
+            gameOver()
+            pygame.quit()
+            sock.close()
+            exit()
         pygame.display.update()
         clock.tick(60)
 
@@ -296,4 +343,5 @@ if __name__ == "__main__":
     t1.start()
     runme()
     pygame.quit()
+    sock.close()
     exit()

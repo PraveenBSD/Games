@@ -28,7 +28,9 @@ class Server:
                 break
 
     def run(self):
+        playerCount = 0
         while True:
+            playerCount += 1
             c, a = self.sock.accept()
             cThread = threading.Thread(target = self.handler, args = (c, a))
             cThread.daemon = True
@@ -38,4 +40,3 @@ class Server:
 
 server =  Server()
 server.run()
-
